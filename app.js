@@ -10,8 +10,31 @@ const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "tallalnparis4ev";
 const REPO_NAME = "programmer-stories";
+const WORKFLOW_NAME = "deploy-on-push.yml"; // Replace with the actual workflow file name
 
 const octokit = new Octokit({ auth: GITHUB_TOKEN });
+
+async function triggerGithubAction() {
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/workflows/${WORKFLOW_NAME}/dispatches`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${GITHUB_TOKEN}`,
+      Accept: "application/vnd.github.v3+json",
+    },
+    body: JSON.stringify({
+      ref: "main", // The branch where the workflow should be triggered
+    }),
+  });
+
+  if (response.ok) {
+    console.log("Workflow triggered successfully!");
+  } else {
+    const error = await response.json();
+    console.error("Failed to trigger workflow:", error);
+  }
+}
 
 function verifySignature(payload, signature) {
   const sig = Buffer.from(signature || "", "utf8");
@@ -57,15 +80,7 @@ app.post("/webhook", async (req, res) => {
     ref === "refs/heads/main"
   ) {
     try {
-      await octokit.repos.createDispatchEvent({
-        owner: REPO_OWNER,
-        repo: REPO_NAME,
-        event_type: "deploy-on-push",
-        client_payload: {
-          ref: ref,
-          commit: req.body.after,
-        },
-      });
+      await triggerGithubAction();
       console.log("Deploy workflow triggered successfully");
       res.status(200).send("Push webhook processed successfully");
     } catch (error) {
