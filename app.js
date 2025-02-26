@@ -30,8 +30,9 @@ app.post("/webhook", async (req, res) => {
     return res.status(401).send("Invalid signature");
   }
 
-  const { action, submodule } = req.body;
+  const { action, submodule, ref } = req.body;
 
+  // Handle submodule updates
   if (action === "updated" && submodule) {
     try {
       await octokit.repos.createDispatchEvent({
@@ -48,6 +49,28 @@ app.post("/webhook", async (req, res) => {
     } catch (error) {
       console.error("Error triggering GitHub Actions workflow:", error);
       res.status(500).send("Error processing webhook");
+    }
+  }
+  // Handle push events
+  else if (
+    req.headers["x-github-event"] === "push" &&
+    ref === "refs/heads/main"
+  ) {
+    try {
+      await octokit.repos.createDispatchEvent({
+        owner: REPO_OWNER,
+        repo: REPO_NAME,
+        event_type: "deploy-on-push",
+        client_payload: {
+          ref: ref,
+          commit: req.body.after,
+        },
+      });
+      console.log("Deploy workflow triggered successfully");
+      res.status(200).send("Push webhook processed successfully");
+    } catch (error) {
+      console.error("Error triggering deploy workflow:", error);
+      res.status(500).send("Error processing push webhook");
     }
   } else {
     res.status(200).send("Webhook received, but no action taken");
